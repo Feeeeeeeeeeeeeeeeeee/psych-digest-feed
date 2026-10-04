@@ -4,7 +4,7 @@ on:
   schedule:
     # 5:00 AM Monday NZDT (16:00 UTC Sunday) & 5:00 AM Thursday NZDT (16:00 UTC Wednesday)
     - cron: '0 16 * * 0,3'
-  workflow_dispatch: # Allows manual trigger anytime from GitHub web UI
+  workflow_dispatch:
 
 jobs:
   build-and-publish:
@@ -21,8 +21,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install system fonts and dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core
           pip install requests edge-tts pillow google-genai
 
       - name: Run Digest Pipeline

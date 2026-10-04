@@ -186,44 +186,92 @@ def format_spoken_authors(authors):
         return f"{authors[0]}, {authors[1]}, and {authors[2]}"
     return f"{authors[0]}, {authors[1]}, {authors[2]}, and colleagues"
 
+def get_font(size, bold=False):
+    """Finds available high-res TrueType fonts on macOS, Ubuntu, or generic Linux."""
+    candidate_paths = [
+        # Ubuntu / Debian
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        # macOS
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/Library/Fonts/Arial.ttf"
+    ]
+    for path in candidate_paths:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                continue
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
+
 def generate_episode_art(paper, output_image_path):
     width, height = 1400, 1400
-    img = Image.new("RGB", (width, height), color=(22, 27, 34))
-    draw = ImageDraw.Draw(img)
     
-    try:
-        font_header = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 48)
-        font_title = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 60)
-        font_meta = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 42)
-    except Exception:
-        font_header = ImageFont.load_default()
-        font_title = ImageFont.load_default()
-        font_meta = ImageFont.load_default()
+    # Color palette tailored by category
+    is_music = "Music" in paper.get("tag", "")
+    is_review = "review" in paper.get("type", "").lower()
+    
+    if is_music:
+        accent_color = (235, 94, 40)   # Vivid warm amber / orange
+        category_label = "MUSIC & RHYTHM"
+    elif is_review:
+        accent_color = (43, 147, 226)  # Electric blue
+        category_label = "SYSTEMATIC REVIEW"
+    else:
+        accent_color = (16, 185, 129)  # Emerald green
+        category_label = "EMPIRICAL RESEARCH"
 
-    draw.rectangle([(0, 0), (width, 180)], fill=(31, 111, 235))
-    header_text = f"{paper['journal'].upper()} ({paper['year']})"
-    draw.text((80, 65), header_text[:45], fill=(255, 255, 255), font=font_header)
+    bg_color = (15, 20, 28) # Clean dark canvas
+    img = Image.new("RGB", (width, height), color=bg_color)
+    draw = ImageDraw.Draw(img)
 
+    # 1. Top Category Pill / Banner
+    draw.rounded_rectangle([(80, 80), (600, 170)], radius=18, fill=accent_color)
+    font_badge = get_font(46, bold=True)
+    draw.text((110, 102), category_label, fill=(255, 255, 255), font=font_badge)
+
+    # Date / Episode stamp in top right
+    date_stamp = get_date_stamp()
+    font_date = get_font(42, bold=False)
+    draw.text((1050, 105), date_stamp, fill=(140, 155, 175), font=font_date)
+
+    # 2. Main Title (GIANT, high-contrast readable text)
+    # Wrap words cleanly with max 22 chars per line for massive legibility
     words = paper['title'].split()
-    lines, current_line = [], []
-    for word in words:
-        current_line.append(word)
-        if len(" ".join(current_line)) > 30:
-            lines.append(" ".join(current_line))
-            current_line = []
-    if current_line:
-        lines.append(" ".join(current_line))
+    lines, cur = [], []
+    for w in words:
+        cur.append(w)
+        if len(" ".join(cur)) > 20:
+            lines.append(" ".join(cur))
+            cur = []
+    if cur:
+        lines.append(" ".join(cur))
 
-    y_pos = 320
-    for line in lines[:8]:
-        draw.text((80, y_pos), line, fill=(240, 246, 252), font=font_title)
-        y_pos += 85
+    font_title = get_font(92, bold=True)
+    y_pos = 260
+    for line in lines[:5]:
+        draw.text((85, y_pos), line, fill=(255, 255, 255), font=font_title)
+        y_pos += 125
 
-    draw.line([(80, 1180), (1320, 1180)], fill=(48, 54, 61), width=4)
+    # 3. Bottom Card: Journal & Authors
+    card_top = 1060
+    draw.rounded_rectangle([(80, card_top), (1320, 1320)], radius=24, fill=(26, 34, 46))
+    
+    # Left accent bar on card
+    draw.rounded_rectangle([(80, card_top), (105, 1320)], radius=8, fill=accent_color)
+
+    font_journal = get_font(52, bold=True)
+    font_authors = get_font(44, bold=False)
+
+    journal_text = f"{paper['journal']} ({paper['year']})"
+    draw.text((140, card_top + 45), journal_text[:40], fill=(240, 245, 255), font=font_journal)
+
     cite = format_author_citation(paper["authors"])
-    paper_type = "Review / Meta-Analysis" if "review" in paper["type"].lower() else "Empirical Article"
-    draw.text((80, 1220), f"Format: {paper_type}", fill=(139, 148, 158), font=font_meta)
-    draw.text((80, 1280), f"Authors: {cite}", fill=(201, 209, 217), font=font_meta)
+    draw.text((140, card_top + 130), f"By {cite}", fill=(160, 175, 200), font=font_authors)
 
     img.save(output_image_path)
 
@@ -337,7 +385,6 @@ def append_to_podcast_rss(new_entries):
         
     all_new_str = "\n".join(new_items_xml)
     
-    # Read existing items if feed.xml exists
     existing_items = ""
     if os.path.exists(FEED_FILE):
         with open(FEED_FILE, "r", encoding="utf-8") as f:
