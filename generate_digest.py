@@ -63,7 +63,7 @@ def reconstruct_abstract(inverted_index):
             word_map[pos] = word
     return " ".join([word_map[i] for i in sorted(word_map.keys())])
 
-def fetch_openalex(query, is_review_only=False, days_back=30, limit=10):
+def fetch_openalex(query, is_review_only=False, days_back=120, limit=40):
     since_date = (datetime.date.today() - datetime.timedelta(days=days_back)).isoformat()
     type_filter = "type:review" if is_review_only else "type:article|review"
     filter_str = f"is_oa:true,{type_filter},from_publication_date:{since_date},has_abstract:true,topics.field.id:32|28"
@@ -85,7 +85,7 @@ def fetch_openalex(query, is_review_only=False, days_back=30, limit=10):
     results = []
     for item in resp.get("results", []):
         abstract = reconstruct_abstract(item.get("abstract_inverted_index"))
-        if not abstract or len(abstract.split()) < 35:
+        if not abstract or len(abstract.split()) < 40:
             continue
             
         authorships = item.get("authorships", [])
@@ -116,14 +116,14 @@ def curate_new_papers(history_set):
     chosen = []
     seen = set(history_set)
     
-    # 1. Music, Drumming & Rhythm Priority
+    # 1. Music, Drumming & Rhythm Priority (Pick up to 2 fresh ones)
     music_queries = [
-        "drummer drumming percussion percussionist rhythm",
-        "musicians performance anxiety psychology",
-        "music psychology emotion regulation auditory cognition"
+        "drummer drumming percussion rhythm meter",
+        "musicians auditory motor synchronization",
+        "music psychology emotion regulation"
     ]
     for q in music_queries:
-        for p in fetch_openalex(q, is_review_only=False, limit=6):
+        for p in fetch_openalex(q, is_review_only=False, limit=35):
             if p["id"] not in seen:
                 p["tag"] = "Music/Rhythm Priority"
                 chosen.append(p)
@@ -133,34 +133,33 @@ def curate_new_papers(history_set):
         if len(chosen) >= 2:
             break
             
-    # Topic queries
+    # Core research interest queries
     topic_queries = [
-        "acceptance and commitment therapy",
-        "emotion regulation affective",
-        "psychological richness well-being eudaimonia",
-        "relationship satisfaction libido sex drive",
-        "calling career meaning in life",
-        "superstition magical thinking belief"
+        "acceptance and commitment therapy psychological flexibility",
+        "emotion regulation cognitive reappraisal affective",
+        "psychological richness meaning in life well-being",
+        "relationship satisfaction sexual desire libido",
+        "calling career meaning vocational psychology",
+        "superstition magical thinking causal reasoning"
     ]
     
-    # 2. Reviews First
+    # 2. Priority Reviews / Meta-Analyses (Picks up to remaining target)
     for q in topic_queries:
         if len(chosen) >= 7:
             break
-        for p in fetch_openalex(q, is_review_only=True, limit=2):
+        for p in fetch_openalex(q, is_review_only=True, limit=30):
             if p["id"] not in seen:
                 p["tag"] = "Review / Synthesis"
                 chosen.append(p)
                 seen.add(p["id"])
-                if len(chosen) >= 7:
-                    break
+                break  # Spread 1 per topic area
                     
-    # 3. Fallback: Empirical Articles
+    # 3. Fallback: Recent Empirical Articles
     if len(chosen) < 7:
         for q in topic_queries:
             if len(chosen) >= 7:
                 break
-            for p in fetch_openalex(q, is_review_only=False, limit=3):
+            for p in fetch_openalex(q, is_review_only=False, limit=35):
                 if p["id"] not in seen:
                     p["tag"] = "Empirical Article"
                     chosen.append(p)
@@ -227,16 +226,14 @@ def generate_episode_art(paper, output_image_path):
     img = Image.new("RGB", (width, height), color=bg_color)
     draw = ImageDraw.Draw(img)
 
-    # 1. Top Category Pill
-    draw.rounded_rectangle([(80, 80), (600, 170)], radius=18, fill=accent_color)
-    font_badge = get_font(46, bold=True)
-    draw.text((110, 102), category_label, fill=(255, 255, 255), font=font_badge)
+    draw.rounded_rectangle([(80, 80), (620, 170)], radius=18, fill=accent_color)
+    font_badge = get_font(44, bold=True)
+    draw.text((105, 102), category_label, fill=(255, 255, 255), font=font_badge)
 
     date_stamp = get_date_stamp()
     font_date = get_font(42, bold=False)
     draw.text((1050, 105), date_stamp, fill=(140, 155, 175), font=font_date)
 
-    # 2. Main Title (Large, wrapped text)
     words = paper['title'].split()
     lines, cur = [], []
     for w in words:
@@ -247,13 +244,12 @@ def generate_episode_art(paper, output_image_path):
     if cur:
         lines.append(" ".join(cur))
 
-    font_title = get_font(92, bold=True)
+    font_title = get_font(90, bold=True)
     y_pos = 260
     for line in lines[:5]:
         draw.text((85, y_pos), line, fill=(255, 255, 255), font=font_title)
         y_pos += 125
 
-    # 3. Bottom Card: Journal & Authors
     card_top = 1060
     draw.rounded_rectangle([(80, card_top), (1320, 1320)], radius=24, fill=(26, 34, 46))
     draw.rounded_rectangle([(80, card_top), (105, 1320)], radius=8, fill=accent_color)
@@ -443,7 +439,6 @@ async def main():
         author_cite = format_author_citation(paper["authors"])
         ep_title = f"{date_slug} - {idx:02d}: {paper['title']} ({author_cite})"
         
-        # Formatted description with direct clickable paper link
         paper_link = paper["url"] if paper["url"] else "No direct link available"
         ep_desc = (
             f"{paper['title']} - {author_cite} - {paper['year']}\n"
