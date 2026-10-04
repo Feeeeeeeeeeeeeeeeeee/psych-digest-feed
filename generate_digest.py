@@ -98,9 +98,11 @@ def fetch_openalex(query, is_review_only=False, days_back=30, limit=10):
             source_name = source.get("display_name")
             
         pub_year = item.get("publication_year") or datetime.date.today().year
+        paper_url = item.get("doi") or item.get("id") or ""
         
         results.append({
             "id": item.get("id"),
+            "url": paper_url,
             "title": item.get("title", "Untitled"),
             "type": item.get("type", "article"),
             "year": pub_year,
@@ -187,12 +189,9 @@ def format_spoken_authors(authors):
     return f"{authors[0]}, {authors[1]}, {authors[2]}, and colleagues"
 
 def get_font(size, bold=False):
-    """Finds available high-res TrueType fonts on macOS, Ubuntu, or generic Linux."""
     candidate_paths = [
-        # Ubuntu / Debian
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        # macOS
         "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
         "/System/Library/Fonts/Helvetica.ttc",
         "/Library/Fonts/Arial.ttf"
@@ -211,12 +210,11 @@ def get_font(size, bold=False):
 def generate_episode_art(paper, output_image_path):
     width, height = 1400, 1400
     
-    # Color palette tailored by category
     is_music = "Music" in paper.get("tag", "")
     is_review = "review" in paper.get("type", "").lower()
     
     if is_music:
-        accent_color = (235, 94, 40)   # Vivid warm amber / orange
+        accent_color = (235, 94, 40)   # Amber / orange
         category_label = "MUSIC & RHYTHM"
     elif is_review:
         accent_color = (43, 147, 226)  # Electric blue
@@ -225,22 +223,20 @@ def generate_episode_art(paper, output_image_path):
         accent_color = (16, 185, 129)  # Emerald green
         category_label = "EMPIRICAL RESEARCH"
 
-    bg_color = (15, 20, 28) # Clean dark canvas
+    bg_color = (15, 20, 28)
     img = Image.new("RGB", (width, height), color=bg_color)
     draw = ImageDraw.Draw(img)
 
-    # 1. Top Category Pill / Banner
+    # 1. Top Category Pill
     draw.rounded_rectangle([(80, 80), (600, 170)], radius=18, fill=accent_color)
     font_badge = get_font(46, bold=True)
     draw.text((110, 102), category_label, fill=(255, 255, 255), font=font_badge)
 
-    # Date / Episode stamp in top right
     date_stamp = get_date_stamp()
     font_date = get_font(42, bold=False)
     draw.text((1050, 105), date_stamp, fill=(140, 155, 175), font=font_date)
 
-    # 2. Main Title (GIANT, high-contrast readable text)
-    # Wrap words cleanly with max 22 chars per line for massive legibility
+    # 2. Main Title (Large, wrapped text)
     words = paper['title'].split()
     lines, cur = [], []
     for w in words:
@@ -260,8 +256,6 @@ def generate_episode_art(paper, output_image_path):
     # 3. Bottom Card: Journal & Authors
     card_top = 1060
     draw.rounded_rectangle([(80, card_top), (1320, 1320)], radius=24, fill=(26, 34, 46))
-    
-    # Left accent bar on card
     draw.rounded_rectangle([(80, card_top), (105, 1320)], radius=8, fill=accent_color)
 
     font_journal = get_font(52, bold=True)
@@ -448,7 +442,14 @@ async def main():
         
         author_cite = format_author_citation(paper["authors"])
         ep_title = f"{date_slug} - {idx:02d}: {paper['title']} ({author_cite})"
-        ep_desc = f"{paper['journal']} ({paper['year']}). {paper['abstract'][:300]}..."
+        
+        # Formatted description with direct clickable paper link
+        paper_link = paper["url"] if paper["url"] else "No direct link available"
+        ep_desc = (
+            f"{paper['title']} - {author_cite} - {paper['year']}\n"
+            f"{paper_link}\n\n"
+            f"{paper['journal']} ({paper['year']}). {paper['abstract']}"
+        )
         
         episode_entries.append({
             "title": ep_title,
