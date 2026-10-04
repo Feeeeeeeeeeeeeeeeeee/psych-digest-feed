@@ -1,0 +1,423 @@
+import os
+import re
+import json
+import time
+import math
+import subprocess
+import datetime
+import urllib.parse
+from xml.sax.saxutils import escape as xml_escape
+import asyncio
+import requests
+import edge_tts
+from PIL import Image, ImageDraw, ImageFont
+from google import genai
+
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
+client = genai.Client(api_key=GEMINI_KEY) if GEMINI_KEY else None
+
+VOICE_ALEX = "en-US-GuyNeural"
+VOICE_JORDAN = "en-US-JennyNeural"
+
+FEED_BASE_URL = "https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/"
+FEED_FILE = "feed.xml"
+HISTORY_FILE = "history.json"
+
+CANDIDATE_MODELS = [
+    "models/gemini-3.5-flash-lite",
+    "models/gemini-flash-latest"
+]
+
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                return set(json.load(f))
+        except Exception:
+            return set()
+    return set()
+
+def save_history(history_set):
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(sorted(list(history_set)), f, indent=2)
+
+def get_week_of_month(dt):
+    first_day = dt.replace(day=1)
+    dom = dt.day
+    adjusted_dom = dom + first_day.weekday()
+    return int(math.ceil(adjusted_dom / 7.0))
+
+def get_date_stamp():
+    now = datetime.date.today()
+    month_str = now.strftime("%b")
+    week_num = get_week_of_month(now)
+    year_short = now.strftime("%y")
+    return f"{month_str} W{week_num} {year_short}"
+
+def reconstruct_abstract(inverted_index):
+    if not inverted_index:
+        return ""
+    word_map = {}
+    for word, positions in inverted_index.items():
+        for pos in positions:
+            word_map[pos] = word
+    return " ".join([word_map[i] for i in sorted(word_map.keys())])
+
+def fetch_openalex(query, is_review_only=False, days_back=30, limit=10):
+    since_date = (datetime.date.today() - datetime.timedelta(days=days_back)).isoformat()
+    type_filter = "type:review" if is_review_only else "type:article|review"
+    filter_str = f"is_oa:true,{type_filter},from_publication_date:{since_date},has_abstract:true,topics.field.id:32|28"
+    
+    url = "https://api.openalex.org/works"
+    params = {
+        "filter": filter_str,
+        "search": query,
+        "sort": "publication_date:desc",
+        "per_page": limit
+    }
+    headers = {"User-Agent": "mailto:psych-digest-curator@example.com"}
+    try:
+        r = requests.get(url, params=params, headers=headers)
+        resp = r.json()
+    except Exception:
+        return []
+    
+    results = []
+    for item in resp.get("results", []):
+        abstract = reconstruct_abstract(item.get("abstract_inverted_index"))
+        if not abstract or len(abstract.split()) < 35:
+            continue
+            
+        authorships = item.get("authorships", [])
+        authors = [a.get("author", {}).get("display_name", "") for a in authorships if a.get("author", {}).get("display_name")]
+        
+        source_name = "Unknown Journal"
+        prim_loc = item.get("primary_location") or {}
+        source = prim_loc.get("source") or {}
+        if source.get("display_name"):
+            source_name = source.get("display_name")
+            
+        pub_year = item.get("publication_year") or datetime.date.today().year
+        
+        results.append({
+            "id": item.get("id"),
+            "title": item.get("title", "Untitled"),
+            "type": item.get("type", "article"),
+            "year": pub_year,
+            "journal": source_name,
+            "authors": authors,
+            "abstract": abstract
+        })
+    return results
+
+def curate_new_papers(history_set):
+    chosen = []
+    seen = set(history_set)
+    
+    # 1. Music, Drumming & Rhythm Priority
+    music_queries = [
+        "drummer drumming percussion percussionist rhythm",
+        "musicians performance anxiety psychology",
+        "music psychology emotion regulation auditory cognition"
+    ]
+    for q in music_queries:
+        for p in fetch_openalex(q, is_review_only=False, limit=6):
+            if p["id"] not in seen:
+                p["tag"] = "Music/Rhythm Priority"
+                chosen.append(p)
+                seen.add(p["id"])
+                if len(chosen) >= 2:
+                    break
+        if len(chosen) >= 2:
+            break
+            
+    # Topic queries
+    topic_queries = [
+        "acceptance and commitment therapy",
+        "emotion regulation affective",
+        "psychological richness well-being eudaimonia",
+        "relationship satisfaction libido sex drive",
+        "calling career meaning in life",
+        "superstition magical thinking belief"
+    ]
+    
+    # 2. Reviews First
+    for q in topic_queries:
+        if len(chosen) >= 7:
+            break
+        for p in fetch_openalex(q, is_review_only=True, limit=2):
+            if p["id"] not in seen:
+                p["tag"] = "Review / Synthesis"
+                chosen.append(p)
+                seen.add(p["id"])
+                if len(chosen) >= 7:
+                    break
+                    
+    # 3. Fallback: Empirical Articles
+    if len(chosen) < 7:
+        for q in topic_queries:
+            if len(chosen) >= 7:
+                break
+            for p in fetch_openalex(q, is_review_only=False, limit=3):
+                if p["id"] not in seen:
+                    p["tag"] = "Empirical Article"
+                    chosen.append(p)
+                    seen.add(p["id"])
+                    if len(chosen) >= 7:
+                        break
+                        
+    return chosen
+
+def format_author_citation(authors):
+    if not authors:
+        return "Unknown Authors"
+    if len(authors) == 1:
+        return authors[0]
+    return f"{authors[0]} et al."
+
+def format_spoken_authors(authors):
+    if not authors:
+        return "an unknown research team"
+    if len(authors) == 1:
+        return authors[0]
+    if len(authors) == 2:
+        return f"{authors[0]} and {authors[1]}"
+    if len(authors) == 3:
+        return f"{authors[0]}, {authors[1]}, and {authors[2]}"
+    return f"{authors[0]}, {authors[1]}, {authors[2]}, and colleagues"
+
+def generate_episode_art(paper, output_image_path):
+    width, height = 1400, 1400
+    img = Image.new("RGB", (width, height), color=(22, 27, 34))
+    draw = ImageDraw.Draw(img)
+    
+    try:
+        font_header = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 48)
+        font_title = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 60)
+        font_meta = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 42)
+    except Exception:
+        font_header = ImageFont.load_default()
+        font_title = ImageFont.load_default()
+        font_meta = ImageFont.load_default()
+
+    draw.rectangle([(0, 0), (width, 180)], fill=(31, 111, 235))
+    header_text = f"{paper['journal'].upper()} ({paper['year']})"
+    draw.text((80, 65), header_text[:45], fill=(255, 255, 255), font=font_header)
+
+    words = paper['title'].split()
+    lines, current_line = [], []
+    for word in words:
+        current_line.append(word)
+        if len(" ".join(current_line)) > 30:
+            lines.append(" ".join(current_line))
+            current_line = []
+    if current_line:
+        lines.append(" ".join(current_line))
+
+    y_pos = 320
+    for line in lines[:8]:
+        draw.text((80, y_pos), line, fill=(240, 246, 252), font=font_title)
+        y_pos += 85
+
+    draw.line([(80, 1180), (1320, 1180)], fill=(48, 54, 61), width=4)
+    cite = format_author_citation(paper["authors"])
+    paper_type = "Review / Meta-Analysis" if "review" in paper["type"].lower() else "Empirical Article"
+    draw.text((80, 1220), f"Format: {paper_type}", fill=(139, 148, 158), font=font_meta)
+    draw.text((80, 1280), f"Authors: {cite}", fill=(201, 209, 217), font=font_meta)
+
+    img.save(output_image_path)
+
+def write_script_with_fallback(paper):
+    spoken_authors = format_spoken_authors(paper["authors"])
+    short_cite = format_author_citation(paper["authors"])
+    paper_type_display = "systematic review or meta-analysis" if "review" in paper["type"].lower() else "empirical research article"
+    
+    prompt = f"""
+    You are writing a psychology podcast breakdown between two colleagues: Alex and Jordan.
+    
+    MANDATORY OPENING:
+    Alex MUST start the episode with the following exact lines:
+    "Alex: Today we're looking at a {paper_type_display} titled, '{paper['title']}', published in {paper['year']} in {paper['journal']}, by {spoken_authors}. Here is the abstract verbatim: {paper['abstract']}"
+    
+    CONVERSATIONAL BODY:
+    Directly following the abstract, Jordan reacts and initiates the dialogue.
+    - Jordan is the Learner: hasn't read the paper, asks insightful questions, challenges definitions, and explores implications.
+    - Alex is the Teacher: knows the paper in detail and guides Jordan through the methodology, statistical findings, and theoretical significance.
+    - Discussion length: 600 to 750 words.
+    
+    MANDATORY CLOSING (FINAL 2 TURNS):
+    The episode MUST conclude with a brief summary recap:
+    - Jordan: summarizes what they learned by stating: "So to recap, that was '{paper['title']}' by {short_cite}."
+    - Alex: gives the final sign-off with exactly 2 sentences:
+      1. A one-sentence summary of the core research question.
+      2. A one-sentence summary of the main finding/takeaway.
+    
+    FORMATTING:
+    - Strictly alternate lines starting with 'Alex: ' and 'Jordan: '.
+    - No bracketed notes, stage directions, or audio tags.
+    """
+    
+    for attempt in range(4):
+        for model_name in CANDIDATE_MODELS:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+                if response and response.text:
+                    return response.text
+            except Exception as e:
+                time.sleep(2)
+        time.sleep(3)
+            
+    raise RuntimeError("Could not generate script after retrying available models.")
+
+async def generate_episode_audio(script_text, output_mp3):
+    lines = script_text.strip().split("\n")
+    temp_files = []
+    
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        speaker, text = line.split(":", 1)
+        voice = VOICE_ALEX if "Alex" in speaker else VOICE_JORDAN
+        temp_filename = f"temp_part_{i}.mp3"
+        
+        communicate = edge_tts.Communicate(text.strip(), voice)
+        await communicate.save(temp_filename)
+        temp_files.append(temp_filename)
+        
+    with open(output_mp3, 'wb') as outfile:
+        for f in temp_files:
+            if os.path.exists(f):
+                with open(f, 'rb') as infile:
+                    outfile.write(infile.read())
+                os.remove(f)
+
+def build_paths(idx, paper):
+    date_slug = get_date_stamp()
+    snappy = "Music_Rhythm" if "Music" in paper["tag"] else ("Review" if "Review" in paper["tag"] else "Empirical")
+    doc_type = "Review" if "review" in paper["type"].lower() else "Article"
+    author_str = format_author_citation(paper["authors"])
+    
+    clean_title = re.sub(r'[^a-zA-Z0-9\s]', '', paper['title'])
+    words = clean_title.split()
+    short_title = "_".join(words[:6])
+    clean_author = re.sub(r'[^a-zA-Z0-9\s]', '', author_str).replace(' ', '_')
+    
+    base_name = f"{date_slug} - {idx:02d}_{snappy} - [{doc_type}] - {short_title} ({clean_author})"
+    mp3_path = f"episodes/{base_name}.mp3"
+    art_path = f"artwork/{base_name}.png"
+    return mp3_path, art_path
+
+def append_to_podcast_rss(new_entries):
+    now_rfc822 = datetime.datetime.now(datetime.timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
+    
+    new_items_xml = []
+    for ep in new_entries:
+        encoded_audio = urllib.parse.quote(ep["audio_path"])
+        encoded_art = urllib.parse.quote(ep["art_path"])
+        
+        audio_url = urllib.parse.urljoin(FEED_BASE_URL, encoded_audio)
+        art_url = urllib.parse.urljoin(FEED_BASE_URL, encoded_art)
+        filesize = os.path.getsize(ep["audio_path"]) if os.path.exists(ep["audio_path"]) else 15000000
+        
+        item_block = f"""    <item>
+      <title>{xml_escape(ep['title'])}</title>
+      <description>{xml_escape(ep['description'])}</description>
+      <pubDate>{now_rfc822}</pubDate>
+      <enclosure url="{audio_url}" length="{filesize}" type="audio/mpeg" />
+      <itunes:image href="{art_url}" />
+      <guid isPermaLink="false">{ep['guid']}</guid>
+      <itunes:duration>480</itunes:duration>
+      <itunes:explicit>no</itunes:explicit>
+    </item>"""
+        new_items_xml.append(item_block)
+        
+    all_new_str = "\n".join(new_items_xml)
+    
+    # Read existing items if feed.xml exists
+    existing_items = ""
+    if os.path.exists(FEED_FILE):
+        with open(FEED_FILE, "r", encoding="utf-8") as f:
+            old_content = f.read()
+            match = re.search(r'(<item>.*?</item>)', old_content, re.DOTALL)
+            if match:
+                items_start = old_content.find("    <item>")
+                items_end = old_content.rfind("</item>") + len("</item>")
+                if items_start != -1 and items_end != -1:
+                    existing_items = old_content[items_start:items_end]
+
+    combined_items = all_new_str
+    if existing_items:
+        combined_items = all_new_str + "\n" + existing_items
+
+    rss_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Psychology Research Digest</title>
+    <link>{FEED_BASE_URL}</link>
+    <language>en-us</language>
+    <itunes:author>Felix</itunes:author>
+    <description>Twice-weekly deep-dives into music psychology, affective science, and behavioural research.</description>
+    <itunes:summary>Curated literature breakdowns covering music cognition, rhythm, emotional regulation, and clinical psychology.</itunes:summary>
+    <itunes:category text="Science">
+      <itunes:category text="Social Sciences"/>
+    </itunes:category>
+    <itunes:image href="https://raw.githubusercontent.com/Feeeeeeeeeeeeeeeeeee/psych-digest-feed/main/cover.png"/>
+    <itunes:explicit>no</itunes:explicit>
+{combined_items}
+  </channel>
+</rss>
+"""
+    with open(FEED_FILE, "w", encoding="utf-8") as f:
+        f.write(rss_content)
+    print(f"Updated {FEED_FILE} (added {len(new_entries)} fresh episodes).")
+
+async def main():
+    os.makedirs("episodes", exist_ok=True)
+    os.makedirs("artwork", exist_ok=True)
+    
+    history_set = load_history()
+    date_slug = get_date_stamp()
+    print(f"[{date_slug}] Checking for brand-new papers (skipping {len(history_set)} previously covered)...")
+    
+    new_papers = curate_new_papers(history_set)
+    if not new_papers:
+        print("No new papers found since last cycle. Exiting without changes.")
+        return
+
+    print(f"Found {len(new_papers)} new papers. Synthesizing...\n")
+    episode_entries = []
+
+    for idx, paper in enumerate(new_papers, 1):
+        mp3_path, art_path = build_paths(idx, paper)
+        print(f"--- [{idx}/{len(new_papers)}] {paper['title'][:65]} ---")
+        
+        generate_episode_art(paper, art_path)
+        script = write_script_with_fallback(paper)
+        await generate_episode_audio(script, mp3_path)
+        
+        author_cite = format_author_citation(paper["authors"])
+        ep_title = f"{date_slug} - {idx:02d}: {paper['title']} ({author_cite})"
+        ep_desc = f"{paper['journal']} ({paper['year']}). {paper['abstract'][:300]}..."
+        
+        episode_entries.append({
+            "title": ep_title,
+            "description": ep_desc,
+            "audio_path": mp3_path,
+            "art_path": art_path,
+            "guid": f"digest-{paper['id'].split('/')[-1]}"
+        })
+        
+        history_set.add(paper["id"])
+        if idx < len(new_papers):
+            time.sleep(3)
+
+    append_to_podcast_rss(episode_entries)
+    save_history(history_set)
+    print(f"All {len(new_papers)} episodes compiled successfully.")
+
+if __name__ == "__main__":
+    asyncio.run(main())
