@@ -1,0 +1,46 @@
+name: Saturday Weekly Recap
+
+on:
+  schedule:
+    # 4:00 AM Saturday NZDT is 15:00 UTC Friday
+    - cron: '0 15 * * 5'
+  workflow_dispatch:
+
+jobs:
+  build-recap:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system fonts and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core
+          pip install requests edge-tts pillow google-genai
+
+      - name: Run Weekly Recap Pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python generate_recap.py
+
+      - name: Commit and Push Recap
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add episodes/ artwork/ feed.xml
+          if git diff --staged --quiet; then
+            echo "No recap to commit."
+          else
+            git commit -m "Automated Weekly Recap: $(date +'%Y-%m-%d')"
+            git push origin main
+          fi
