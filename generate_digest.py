@@ -54,6 +54,24 @@ def get_date_stamp():
     year_short = now.strftime("%y")
     return f"{month_str} W{week_num} {year_short}"
 
+def clean_abstract_for_tts(text):
+    """Strips raw statistical clutter, formulas, and bracketed numbers for smooth spoken audio."""
+    if not text:
+        return ""
+    # Strip parenthetical/bracketed statistical blocks like (p < .05), (F(1, 24) = 4.2, p = .03), (95% CI [...])
+    cleaned = re.sub(r'\([^\)]*?(?:p\s*[<=><]|CI|F\(|t\(|\bd\b\s*=|\br\b\s*=|\bOR\b\s*=|\bSD\b)[^\)]*?\)', '', text)
+    cleaned = re.sub(r'\[[^\]]*?(?:p\s*[<=><]|CI|F\(|t\(|\bd\b\s*=|\br\b\s*=|\bOR\b\s*=|\bSD\b)[^\]]*?\]', '', text)
+    # Strip standalone inline p-values and confidence intervals
+    cleaned = re.sub(r'\b[pP]\s*[<=><]\s*\.?\d+', '', cleaned)
+    cleaned = re.sub(r'95%\s*CI\s*\[[^\]]+\]', '', cleaned)
+    cleaned = re.sub(r'\b(?:t|F|z|Z)\s*\(\s*\d+(?:\.\d+)?(?:,\s*\d+(?:\.\d+)?)?\)\s*=\s*-?\d+(?:\.\d+)?', '', cleaned)
+    # Clean up leftover artifacts, double spaces, and awkward punctuation
+    cleaned = re.sub(r'\s+([,.;])', r'\1', cleaned)
+    cleaned = re.sub(r'\(\s*\)', '', cleaned)
+    cleaned = re.sub(r'\[\s*\]', '', cleaned)
+    cleaned = re.sub(r'\s{2,}', ' ', cleaned)
+    return cleaned.strip()
+
 def reconstruct_abstract(inverted_index):
     if not inverted_index:
         return ""
@@ -116,7 +134,6 @@ def curate_new_papers(history_set):
     chosen = []
     seen = set(history_set)
     
-    # 1. Music, Drumming & Rhythm Priority (Pick up to 2 fresh ones)
     music_queries = [
         "drummer drumming percussion rhythm meter",
         "musicians auditory motor synchronization",
@@ -133,7 +150,6 @@ def curate_new_papers(history_set):
         if len(chosen) >= 2:
             break
             
-    # Core research interest queries
     topic_queries = [
         "acceptance and commitment therapy psychological flexibility",
         "emotion regulation cognitive reappraisal affective",
@@ -143,7 +159,6 @@ def curate_new_papers(history_set):
         "superstition magical thinking causal reasoning"
     ]
     
-    # 2. Priority Reviews / Meta-Analyses (Picks up to remaining target)
     for q in topic_queries:
         if len(chosen) >= 7:
             break
@@ -152,9 +167,8 @@ def curate_new_papers(history_set):
                 p["tag"] = "Review / Synthesis"
                 chosen.append(p)
                 seen.add(p["id"])
-                break  # Spread 1 per topic area
+                break
                     
-    # 3. Fallback: Recent Empirical Articles
     if len(chosen) < 7:
         for q in topic_queries:
             if len(chosen) >= 7:
@@ -213,13 +227,13 @@ def generate_episode_art(paper, output_image_path):
     is_review = "review" in paper.get("type", "").lower()
     
     if is_music:
-        accent_color = (235, 94, 40)   # Amber / orange
+        accent_color = (235, 94, 40)
         category_label = "MUSIC & RHYTHM"
     elif is_review:
-        accent_color = (43, 147, 226)  # Electric blue
+        accent_color = (43, 147, 226)
         category_label = "SYSTEMATIC REVIEW"
     else:
-        accent_color = (16, 185, 129)  # Emerald green
+        accent_color = (16, 185, 129)
         category_label = "EMPIRICAL RESEARCH"
 
     bg_color = (15, 20, 28)
@@ -269,29 +283,46 @@ def write_script_with_fallback(paper):
     spoken_authors = format_spoken_authors(paper["authors"])
     short_cite = format_author_citation(paper["authors"])
     paper_type_display = "systematic review or meta-analysis" if "review" in paper["type"].lower() else "empirical research article"
+    clean_abstract = clean_abstract_for_tts(paper["abstract"])
     
     prompt = f"""
     You are writing a psychology podcast breakdown between two colleagues: Alex and Jordan.
     
-    MANDATORY OPENING:
-    Alex MUST start the episode with the following exact lines:
-    "Alex: Today we're looking at a {paper_type_display} titled, '{paper['title']}', published in {paper['year']} in {paper['journal']}, by {spoken_authors}. Here is the abstract verbatim: {paper['abstract']}"
+    RAW ABSTRACT FOR CONTEXT:
+    \"\"\"{paper['abstract']}\"\"\"
+
+    CLEANED ABSTRACT FOR AUDIO READING:
+    \"\"\"{clean_abstract}\"\"\"
+
+    MANDATORY SEQUENCE:
     
-    CONVERSATIONAL BODY:
-    Directly following the abstract, Jordan reacts and initiates the dialogue.
-    - Jordan is the Learner: hasn't read the paper, asks insightful questions, challenges definitions, and explores implications.
-    - Alex is the Teacher: knows the paper in detail and guides Jordan through the methodology, statistical findings, and theoretical significance.
-    - Discussion length: 600 to 750 words.
+    1. ALEX - CITATION & CLEANED ABSTRACT:
+    Alex starts immediately with:
+    "Alex: Today we're looking at a {paper_type_display} titled, '{paper['title']}', published in {paper['year']} in {paper['journal']}, by {spoken_authors}. Here is the abstract: {clean_abstract}"
+
+    2. ALEX - STUDY CONTEXT & DEMOGRAPHICS (BEFORE THE CHAT):
+    Immediately after the abstract, Alex states the sample and demographic profile based on the abstract information:
+    - Sample size: Must use the exact phrase format: "The sample size was [X] participants" (or for reviews, state the number of studies analyzed: "This review analyzed [X] studies"). If completely omitted from the text, Alex states: "The specific sample size is not specified in the abstract."
+    - Demographics: Alex summarizes participant characteristics if available (e.g., age range or mean, gender/sex distribution, geographic location, athlete/musician/clinical status, or ethnicity). If details aren't reported, Alex states: "Specific demographic breakdowns like age and gender were not detailed in the abstract."
     
-    MANDATORY CLOSING (FINAL 2 TURNS):
-    The episode MUST conclude with a brief summary recap:
-    - Jordan: summarizes what they learned by stating: "So to recap, that was '{paper['title']}' by {short_cite}."
+    3. THE DISCUSSION (JORDAN & ALEX):
+    Only AFTER Alex delivers the sample size and demographics does Jordan enter the conversation.
+    - Jordan is the inquisitive learner reacting to the methodology, questioning the ecological validity, and probing implications.
+    - Alex explains the mechanisms, theoretical framework, and methodological strengths/limitations.
+    
+    CRITICAL STATISTICAL TRANSLATION RULE:
+    - NEVER read raw statistical metrics or formula numbers aloud (no p-values, t-scores, F-ratios, d = 0.42, r = .61, or confidence intervals).
+    - TRANSLATE ALL EFFECT SIZES INTO PLAIN-ENGLISH MEANING. Use intuitive terms such as "a small but notable shift", "a moderate correlation", "a robust and statistically strong effect", or "a negligible difference".
+    
+    4. MANDATORY CLOSING (FINAL 2 TURNS):
+    - Jordan: "So to recap, that was '{paper['title']}' by {short_cite}."
     - Alex: gives the final sign-off with exactly 2 sentences:
       1. A one-sentence summary of the core research question.
-      2. A one-sentence summary of the main finding/takeaway.
+      2. A one-sentence summary of the main finding and its real-world implication.
     
     FORMATTING:
     - Strictly alternate lines starting with 'Alex: ' and 'Jordan: '.
+    - Discussion length: 600 to 750 words.
     - No bracketed notes, stage directions, or audio tags.
     """
     
