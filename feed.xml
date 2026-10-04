@@ -5,13 +5,83 @@
     <link>https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/</link>
     <language>en-us</language>
     <itunes:author>Felix</itunes:author>
-    <description>Weekly deep-dives into music psychology, affective science, and behavioural research.</description>
+    <description>Twice-weekly deep-dives into music psychology, affective science, and behavioural research.</description>
     <itunes:summary>Curated literature breakdowns covering music cognition, rhythm, emotional regulation, and clinical psychology.</itunes:summary>
     <itunes:category text="Science">
       <itunes:category text="Social Sciences"/>
     </itunes:category>
     <itunes:image href="https://raw.githubusercontent.com/Feeeeeeeeeeeeeeeeeee/psych-digest-feed/main/cover.png"/>
     <itunes:explicit>no</itunes:explicit>
+    <item>
+      <title>Oct W1 26 - 01: Body percussion and the biomechanical calibration of musical meter: the somatic externalization of meter hypothesis (Francisco Javier Romero Naranjo)</title>
+      <description>Frontiers in Psychology (2026). Musical meter takes specific forms, a preferred tempo and a small set of stable subdivisions, that existing accounts do not fully explain. I propose the Somatic Externalization of Meter (SEM) hypothesis: that these parameters are calibrated to the oscillatory dynamics of the moving body, so meter in...</description>
+      <pubDate>Sun, 04 Oct 2026 09:13:17 GMT</pubDate>
+      <enclosure url="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/episodes/Oct%20W1%2026%20-%2001_Music_Rhythm%20-%20%5BArticle%5D%20-%20Body_percussion_and_the_biomechanical_calibration%20%28Francisco_Javier_Romero_Naranjo%29.mp3" length="1600272" type="audio/mpeg" />
+      <itunes:image href="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/artwork/Oct%20W1%2026%20-%2001_Music_Rhythm%20-%20%5BArticle%5D%20-%20Body_percussion_and_the_biomechanical_calibration%20%28Francisco_Javier_Romero_Naranjo%29.png" />
+      <guid isPermaLink="false">digest-W7212068985</guid>
+      <itunes:duration>480</itunes:duration>
+      <itunes:explicit>no</itunes:explicit>
+    </item>
+    <item>
+      <title>Oct W1 26 - 02: Measure of Emotional Episodes with Music (MEEM): Development and psychometric evaluation of a modular instrument (Connor Kirts et al.)</title>
+      <description>PLoS ONE (2026). Emotional episodes experienced with music are embedded within the milieu of everyday life, yet most existing psychometric instruments only capture trait-like tendencies rather than state-like contextual factors. In this article, we detail the development of the Measure of Emotional Episodes with Mus...</description>
+      <pubDate>Sun, 04 Oct 2026 09:13:17 GMT</pubDate>
+      <enclosure url="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/episodes/Oct%20W1%2026%20-%2002_Music_Rhythm%20-%20%5BArticle%5D%20-%20Measure_of_Emotional_Episodes_with_Music%20%28Connor_Kirts_et_al%29.mp3" length="1853568" type="audio/mpeg" />
+      <itunes:image href="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/artwork/Oct%20W1%2026%20-%2002_Music_Rhythm%20-%20%5BArticle%5D%20-%20Measure_of_Emotional_Episodes_with_Music%20%28Connor_Kirts_et_al%29.png" />
+      <guid isPermaLink="false">digest-W7215072557</guid>
+      <itunes:duration>480</itunes:duration>
+      <itunes:explicit>no</itunes:explicit>
+    </item>
+    <item>
+      <title>Oct W1 26 - 03: Impacts of digital third-wave interventions for adults on wellbeing and mental health outcomes: A systematic review and meta-analysis of randomized controlled trials (Tom Curtis Gordon et al.)</title>
+      <description>PLOS Digital Health (2026). To synthesise the efficacy of digital third-wave process-based interventions (e.g., ACT, Mindfulness, Compassion) for improving wellbeing and ameliorating mental health symptoms in adults. A prospectively registered systematic review (OSF: 10.17605/OSF.IO/5RMU2) and random-effects meta-analysis of r...</description>
+      <pubDate>Sun, 04 Oct 2026 09:13:17 GMT</pubDate>
+      <enclosure url="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/episodes/Oct%20W1%2026%20-%2003_Review%20-%20%5BReview%5D%20-%20Impacts_of_digital_thirdwave_interventions_for%20%28Tom_Curtis_Gordon_et_al%29.mp3" length="2320560" type="audio/mpeg" />
+      <itunes:image href="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/artwork/Oct%20W1%2026%20-%2003_Review%20-%20%5BReview%5D%20-%20Impacts_of_digital_thirdwave_interventions_for%20%28Tom_Curtis_Gordon_et_al%29.png" />
+      <guid isPermaLink="false">digest-W7120179703</guid>
+      <itunes:duration>480</itunes:duration>
+      <itunes:explicit>no</itunes:explicit>
+    </item>
+    <item>
+      <title>Oct W1 26 - 04: Balancing performance and wellbeing: a systematic review of qualitative studies on adult elite athletes' experiences of psychological interventions and an empirical evaluation of a novel intervention for athlete thriving (Ailana Boulos)</title>
+      <description>Research Portal (Queen's University Belfast) (2026). This thesis explores the intersection of mental health and performance in adult elite athletes through a two-part investigation. The first paper presents a systematic review of qualitative studies examining elite athletes’ experiences of psychological interventions. Fourteen studies were synthesised...</description>
+      <pubDate>Sun, 04 Oct 2026 09:13:17 GMT</pubDate>
+      <enclosure url="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/episodes/Oct%20W1%2026%20-%2004_Review%20-%20%5BReview%5D%20-%20Balancing_performance_and_wellbeing_a_systematic%20%28Ailana_Boulos%29.mp3" length="1803312" type="audio/mpeg" />
+      <itunes:image href="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/artwork/Oct%20W1%2026%20-%2004_Review%20-%20%5BReview%5D%20-%20Balancing_performance_and_wellbeing_a_systematic%20%28Ailana_Boulos%29.png" />
+      <guid isPermaLink="false">digest-W7135882407</guid>
+      <itunes:duration>480</itunes:duration>
+      <itunes:explicit>no</itunes:explicit>
+    </item>
+    <item>
+      <title>Oct W1 26 - 05: Online Yoga Interventions for Stress Reduction: A Narrative Review of Evidence From 2017 To 2026 (Simran Malhotra et al.)</title>
+      <description>National Journal of Medical Research (2026). Background: Stress is a significant public health issue that is linked to psychological and physiological complications. Yoga is becoming an easy-to-access non-pharmacological method of stress reduction and has been identified as such in online yoga. Objective: To provide a narrative review of stres...</description>
+      <pubDate>Sun, 04 Oct 2026 09:13:17 GMT</pubDate>
+      <enclosure url="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/episodes/Oct%20W1%2026%20-%2005_Review%20-%20%5BReview%5D%20-%20Online_Yoga_Interventions_for_Stress_Reduction%20%28Simran_Malhotra_et_al%29.mp3" length="1758528" type="audio/mpeg" />
+      <itunes:image href="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/artwork/Oct%20W1%2026%20-%2005_Review%20-%20%5BReview%5D%20-%20Online_Yoga_Interventions_for_Stress_Reduction%20%28Simran_Malhotra_et_al%29.png" />
+      <guid isPermaLink="false">digest-W7215044635</guid>
+      <itunes:duration>480</itunes:duration>
+      <itunes:explicit>no</itunes:explicit>
+    </item>
+    <item>
+      <title>Oct W1 26 - 06: Social exclusion in educational settings and the risk of alienation in adolescent development: a narrative review from a mind-body interaction perspective (Di Lu et al.)</title>
+      <description>Frontiers in Psychology (2026). Introduction Social exclusion in educational settings is a salient interpersonal stressor during adolescence. However, ostracism, peer rejection, peer victimization, bullying, loneliness, and social isolation are overlapping but non-equivalent constructs. This narrative review examines how social ex...</description>
+      <pubDate>Sun, 04 Oct 2026 09:13:17 GMT</pubDate>
+      <enclosure url="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/episodes/Oct%20W1%2026%20-%2006_Review%20-%20%5BReview%5D%20-%20Social_exclusion_in_educational_settings_and%20%28Di_Lu_et_al%29.mp3" length="2077056" type="audio/mpeg" />
+      <itunes:image href="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/artwork/Oct%20W1%2026%20-%2006_Review%20-%20%5BReview%5D%20-%20Social_exclusion_in_educational_settings_and%20%28Di_Lu_et_al%29.png" />
+      <guid isPermaLink="false">digest-W7215098052</guid>
+      <itunes:duration>480</itunes:duration>
+      <itunes:explicit>no</itunes:explicit>
+    </item>
+    <item>
+      <title>Oct W1 26 - 07: Eating disorders, the female athlete triad and relative energy deficiency in sport (RED-S) in young athletes: a narrative review of screening and assessment tools (Igor Smędowski et al.)</title>
+      <description>Quality in Sport (2026). Background: Disordered eating (DE), the Female Athlete Triad and Relative Energy Deficiency in Sport (RED-S) are common, consequential and frequently concealed conditions in young athletes, and because restrictive eating and heavy training are normalised in sport their detection depends on appropria...</description>
+      <pubDate>Sun, 04 Oct 2026 09:13:17 GMT</pubDate>
+      <enclosure url="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/episodes/Oct%20W1%2026%20-%2007_Review%20-%20%5BReview%5D%20-%20Eating_disorders_the_female_athlete_triad%20%28Igor_Smdowski_et_al%29.mp3" length="2155536" type="audio/mpeg" />
+      <itunes:image href="https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/artwork/Oct%20W1%2026%20-%2007_Review%20-%20%5BReview%5D%20-%20Eating_disorders_the_female_athlete_triad%20%28Igor_Smdowski_et_al%29.png" />
+      <guid isPermaLink="false">digest-W7213987645</guid>
+      <itunes:duration>480</itunes:duration>
+      <itunes:explicit>no</itunes:explicit>
+    </item>
     <item>
       <title>Oct W1 26 - 01: Body percussion and the biomechanical calibration of musical meter: the somatic externalization of meter hypothesis (Francisco Javier Romero Naranjo)</title>
       <description>Frontiers in Psychology (2026). Musical meter takes specific forms, a preferred tempo and a small set of stable subdivisions, that existing accounts do not fully explain. I propose the Somatic Externalization of Meter (SEM) hypothesis: that these parameters are calibrated to the oscillatory dynamics of the moving body, so meter in...</description>
