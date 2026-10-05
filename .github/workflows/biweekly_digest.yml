@@ -2,8 +2,9 @@ name: Bi-Weekly Psychology Digest
 
 on:
   schedule:
-    # 5:00 AM Monday NZDT (16:00 UTC Sunday) & 5:00 AM Thursday NZDT (16:00 UTC Wednesday)
-    - cron: '0 16 * * 0,3'
+    # 10:17 PM Sunday & Wednesday NZDT (09:17 UTC Sun/Wed)
+    # Ready well before Monday & Thursday 5:00 AM wake-up
+    - cron: '17 9 * * 0,3'
   workflow_dispatch:
 
 jobs:
