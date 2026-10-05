@@ -286,8 +286,11 @@ def write_script_with_fallback(paper):
     clean_abstract = clean_abstract_for_tts(paper["abstract"])
     
     prompt = f"""
-    You are writing a psychology podcast breakdown between two colleagues: Alex and Jordan.
-    
+    You are writing a podcast conversation between two co-hosts: Jordan and Alex.
+
+    - Jordan is the expert academic researcher (voice of authority, clear, measured, pedagogical).
+    - Alex has NO psychology background. He is a curious layperson who needs concepts translated into plain English.
+
     RAW ABSTRACT FOR CONTEXT:
     \"\"\"{paper['abstract']}\"\"\"
 
@@ -295,37 +298,35 @@ def write_script_with_fallback(paper):
     \"\"\"{clean_abstract}\"\"\"
 
     MANDATORY SEQUENCE:
-    
-    1. ALEX - CITATION & CLEANED ABSTRACT:
-    Alex starts immediately with:
-    "Alex: Today we're looking at a {paper_type_display} titled, '{paper['title']}', published in {paper['year']} in {paper['journal']}, by {spoken_authors}. Here is the abstract: {clean_abstract}"
 
-    2. ALEX - STUDY CONTEXT & DEMOGRAPHICS (BEFORE THE CHAT):
-    Immediately after the abstract, Alex states the sample and demographic profile based on the abstract information:
-    - Sample size: Must use the exact phrase format: "The sample size was [X] participants" (or for reviews, state the number of studies analyzed: "This review analyzed [X] studies"). If completely omitted from the text, Alex states: "The specific sample size is not specified in the abstract."
-    - Demographics: Alex summarizes participant characteristics if available (e.g., age range or mean, gender/sex distribution, geographic location, athlete/musician/clinical status, or ethnicity). If details aren't reported, Alex states: "Specific demographic breakdowns like age and gender were not detailed in the abstract."
-    
-    3. THE DISCUSSION (JORDAN & ALEX):
-    Only AFTER Alex delivers the sample size and demographics does Jordan enter the conversation.
-    - Jordan is the inquisitive learner reacting to the methodology, questioning the ecological validity, and probing implications.
-    - Alex explains the mechanisms, theoretical framework, and methodological strengths/limitations.
-    
-    CRITICAL STATISTICAL TRANSLATION RULE:
-    - NEVER read raw statistical metrics or formula numbers aloud (no p-values, t-scores, F-ratios, d = 0.42, r = .61, or confidence intervals).
-    - TRANSLATE ALL EFFECT SIZES INTO PLAIN-ENGLISH MEANING. Use intuitive terms such as "a small but notable shift", "a moderate correlation", "a robust and statistically strong effect", or "a negligible difference".
-    
-    4. MANDATORY CLOSING (FINAL 2 TURNS):
-    - Jordan: "So to recap, that was '{paper['title']}' by {short_cite}."
-    - Alex: gives the final sign-off with exactly 2 sentences:
-      1. A one-sentence summary of the core research question.
-      2. A one-sentence summary of the main finding and its real-world implication.
-    
+    1. JORDAN OPENS (EXPERT):
+    Jordan MUST start line 1 immediately:
+    "Jordan: Today we are looking at a {paper_type_display} titled, '{paper['title']}', published in {paper['year']} in {paper['journal']}, by {spoken_authors}. Here is the abstract: {clean_abstract}"
+
+    2. JORDAN CONTEXT & DEMOGRAPHICS:
+    Directly after reading the abstract, Jordan states the study setup:
+    - Sample size: "The sample size was [X] participants" (or for reviews, "This review analyzed [X] studies"). If unstated: "The specific sample size is not specified in the abstract."
+    - Demographics: Summarizes age, gender, group status, or notes: "Specific demographic breakdowns were not detailed in the abstract."
+
+    3. CONVERSATIONAL DYNAMIC (ALEX & JORDAN):
+    - Alex speaks first after Jordan finishes the setup.
+    - Alex questions core constructs and domain jargon. When Jordan mentions abstract concepts, Alex stops her and asks: "Wait, what does that actually mean in the real world?"
+    - Alex constantly reframes Jordan's explanations into simple analogies, gut checks, and everyday terms (e.g., "So basically, if you do X to get closer rather than to dodge an argument, things go better?").
+    - Jordan validates or sharpens Alex's simplified summaries.
+    - NEVER read raw statistics aloud (no p-values, t-scores, F-ratios, d, r, or CI numbers). Jordan must translate all effect sizes into qualitative descriptions like "a modest shift", "a massive link", or "barely any difference".
+
+    4. CLOSING:
+    - Alex summarizes the takeaway in simple terms: "So to recap, that was '{paper['title']}' by {short_cite}."
+    - Jordan delivers the final sign-off in exactly two clear sentences:
+      1. A one-sentence summary of the core question.
+      2. A one-sentence summary of the main finding.
+
     FORMATTING:
-    - Strictly alternate lines starting with 'Alex: ' and 'Jordan: '.
-    - Discussion length: 600 to 750 words.
-    - No bracketed notes, stage directions, or audio tags.
+    - Strictly alternate lines starting with 'Jordan: ' and 'Alex: '.
+    - Total dialogue length: 600 to 750 words.
+    - No audio tags, stage directions, or bracketed notes.
     """
-    
+
     for attempt in range(4):
         for model_name in CANDIDATE_MODELS:
             try:
@@ -335,14 +336,15 @@ def write_script_with_fallback(paper):
                 )
                 if response and response.text:
                     return response.text
-            except Exception as e:
+            except Exception:
                 time.sleep(2)
         time.sleep(3)
             
     raise RuntimeError("Could not generate script after retrying available models.")
 
 async def generate_episode_audio(script_text, output_mp3):
-    lines = script_text.strip().split("\n")
+    lines = script_text.strip().split("
+")
     temp_files = []
     
     for i, line in enumerate(lines):
@@ -350,17 +352,18 @@ async def generate_episode_audio(script_text, output_mp3):
         if not line or ":" not in line:
             continue
         speaker, text = line.split(":", 1)
-        voice = VOICE_ALEX if "Alex" in speaker else VOICE_JORDAN
+        # Ensure Jordan gets Jenny (feminine) and Alex gets Guy (masculine)
+        voice = VOICE_JORDAN if "Jordan" in speaker else VOICE_ALEX
         temp_filename = f"temp_part_{i}.mp3"
         
         communicate = edge_tts.Communicate(text.strip(), voice)
         await communicate.save(temp_filename)
         temp_files.append(temp_filename)
         
-    with open(output_mp3, 'wb') as outfile:
+    with open(output_mp3, "wb") as outfile:
         for f in temp_files:
             if os.path.exists(f):
-                with open(f, 'rb') as infile:
+                with open(f, "rb") as infile:
                     outfile.write(infile.read())
                 os.remove(f)
 
