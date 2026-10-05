@@ -343,8 +343,7 @@ def write_script_with_fallback(paper):
     raise RuntimeError("Could not generate script after retrying available models.")
 
 async def generate_episode_audio(script_text, output_mp3):
-    lines = script_text.strip().split("
-")
+    lines = script_text.strip().split("\n")
     temp_files = []
     
     for i, line in enumerate(lines):
