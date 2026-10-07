@@ -2,8 +2,8 @@ name: Daily Psychology Research Digest
 
 on:
   schedule:
-    # 18:00 UTC = 07:00 NZDT every morning
-    - cron: '0 18 * * *'
+    # 09:00 UTC = 22:00 (10:00 PM) NZDT every night
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 jobs:
