@@ -1,3 +1,5 @@
+EPISODES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "episodes")
+os.makedirs(EPISODES_DIR, exist_ok=True)
 def build_show_notes(papers):
     notes = ["<p><strong>Today\'s Morning Science Briefing:</strong></p><ul>"]
     for p in papers:
