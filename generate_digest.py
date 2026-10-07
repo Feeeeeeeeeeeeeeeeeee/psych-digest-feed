@@ -247,64 +247,57 @@ def get_font(size, bold=False):
     except TypeError:
         return ImageFont.load_default()
 
-def generate_episode_art(paper, output_image_path):
-    width, height = 1400, 1400
+def generate_episode_art(papers, output_path):
+    from PIL import Image, ImageDraw, ImageFont
+    import textwrap
     
-    is_music = "Music" in paper.get("tag", "")
-    is_review = "review" in paper.get("type", "").lower()
-    
-    if is_music:
-        accent_color = (235, 94, 40)
-        category_label = "MUSIC & RHYTHM"
-    elif is_review:
-        accent_color = (43, 147, 226)
-        category_label = "SYSTEMATIC REVIEW"
-    else:
-        accent_color = (16, 185, 129)
-        category_label = "EMPIRICAL RESEARCH"
-
-    bg_color = (15, 20, 28)
-    img = Image.new("RGB", (width, height), color=bg_color)
+    img = Image.new("RGB", (1400, 1400), color="#0F172A") # Deep slate navy
     draw = ImageDraw.Draw(img)
 
-    draw.rounded_rectangle([(80, 80), (620, 170)], radius=18, fill=accent_color)
-    font_badge = get_font(44, bold=True)
-    draw.text((105, 102), category_label, fill=(255, 255, 255), font=font_badge)
+    # Accent header bar
+    draw.rectangle([(0, 0), (1400, 32)], fill="#38BDF8")
 
-    date_stamp = get_date_stamp()
-    font_date = get_font(42, bold=False)
-    draw.text((1050, 105), date_stamp, fill=(140, 155, 175), font=font_date)
+    # Typography setup
+    try:
+        font_header = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 64)
+        font_sub = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", 40)
+        font_num = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 46)
+        font_title = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", 36)
+        font_meta = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 26)
+    except Exception:
+        font_header = font_sub = font_num = font_title = font_meta = ImageFont.load_default()
 
-    words = paper['title'].split()
-    lines, cur = [], []
-    for w in words:
-        cur.append(w)
-        if len(" ".join(cur)) > 20:
-            lines.append(" ".join(cur))
-            cur = []
-    if cur:
-        lines.append(" ".join(cur))
+    # Brand Title & Date
+    date_str = datetime.datetime.now().strftime("%A, %d %B %Y")
+    draw.text((100, 100), "DAILY RESEARCH BRIEFING", fill="#F8FAFC", font=font_header)
+    draw.text((100, 180), f"PSYCHOLOGY & NEUROSCIENCE DESK  •  {date_str.upper()}", fill="#38BDF8", font=font_sub)
 
-    font_title = get_font(90, bold=True)
-    y_pos = 260
-    for line in lines[:5]:
-        draw.text((85, y_pos), line, fill=(255, 255, 255), font=font_title)
-        y_pos += 125
+    draw.line([(100, 260), (1300, 260)], fill="#334155", width=4)
 
-    card_top = 1060
-    draw.rounded_rectangle([(80, card_top), (1320, 1320)], radius=24, fill=(26, 34, 46))
-    draw.rounded_rectangle([(80, card_top), (105, 1320)], radius=8, fill=accent_color)
+    # Story Headlines Block
+    y_pos = 320
+    for i, p in enumerate(papers[:3]):
+        # Story badge
+        draw.text((100, y_pos), f"0{i+1}", fill="#38BDF8", font=font_num)
+        
+        # Wrapped title
+        title_lines = textwrap.wrap(p.get("title", "Research Investigation"), width=54)
+        curr_y = y_pos
+        for line in title_lines[:3]:
+            draw.text((200, curr_y), line, fill="#F1F5F9", font=font_title)
+            curr_y += 48
+            
+        # Metadata / Journal
+        journal = p.get("journal", "Academic Journal")
+        year = p.get("year", "Recent")
+        draw.text((200, curr_y + 8), f"{journal.upper()} ({year})", fill="#94A3B8", font=font_meta)
+        
+        y_pos += 290
+        if i < 2:
+            draw.line([(200, y_pos - 40), (1300, y_pos - 40)], fill="#1E293B", width=2)
 
-    font_journal = get_font(52, bold=True)
-    font_authors = get_font(44, bold=False)
-
-    journal_text = f"{paper['journal']} ({paper['year']})"
-    draw.text((140, card_top + 45), journal_text[:40], fill=(240, 245, 255), font=font_journal)
-
-    cite = format_author_citation(paper["authors"])
-    draw.text((140, card_top + 130), f"By {cite}", fill=(160, 175, 200), font=font_authors)
-
-    img.save(output_image_path)
+    img.save(output_path, "PNG")
+    print(f"Generated multi-headline cover art: {output_path}")
 
 def write_script_with_fallback(paper):
     spoken_authors = format_spoken_authors(paper["authors"])
@@ -549,35 +542,50 @@ Assigned Rhetorical Persona: {persona['description']}""")
 
     papers_text = chr(10).join(p_blocks)
 
-    prompt = f"""You are the lead producer for a morning science radio news broadcast.
-Write a continuous, high-momentum morning news bulletin covering these 3 research papers.
+        prompt = f"""You are the lead executive producer for a deep-dive morning science radio news program.
+Produce a thorough, high-substance morning radio broadcast covering these 3 research papers in real depth.
+
+TARGET DURATION & PACING:
+- Total runtime must target 7 to 8 minutes.
+- Give roughly 2 full minutes to EACH paper (~300 to 380 spoken words per paper from the correspondent).
+- Do NOT rush through brief summaries. Correspondents must deeply deconstruct the methodologies, the underlying mechanics, sample contexts, counter-intuitive findings, and real-world behavioral implications.
 
 SPEAKING ROLES:
 
 1. ANCHOR (Molly - Studio Desk):
-   - Fast, confident, authoritative morning radio anchor pace.
-   - Delivers a 2-sentence morning teaser, introduces each story with publication citation and abstract context, tosses cleanly to the corresponding desk title (e.g., 'From the cognitive neuroscience desk...', 'Turning to our behavioral health desk...'), and closes with a brisk 1-sentence recap tying together all three topics.
+   - Confident, authoritative morning radio anchor pace.
+   - Starts with a punchy 2-sentence morning teaser setting the scope of today's scientific focus.
+   - Cleanly introduces each paper with author citation and journal, framing the fundamental question before handing off to the respective desk.
+   - After each correspondent, provides a brief 1-sentence pivot tossing to the next desk.
+   - Delivers a comprehensive final sign-off tying together the overarching implications of all three studies.
 
 2. CORRESPONDENT 1, 2, and 3:
-   - Each correspondent MUST strictly adopt the specific 'Assigned Rhetorical Persona' detailed in their paper block below.
-   - Correspondents jump straight into findings, mechanisms, and real-world takeaways.
+   - Each correspondent MUST strictly adopt their assigned rhetorical persona:
+     * Story 1 ({domain_pool[0]}): {assigned_personas[0]['description']}
+     * Story 2 ({domain_pool[1]}): {assigned_personas[1]['description']}
+     * Story 3 ({domain_pool[2]}): {assigned_personas[2]['description']}
+   - Give each paper a rich, multi-paragraph walkthrough:
+     * Break down the experimental design or paradigm.
+     * What were the explicit statistical findings or observed shifts?
+     * What is the mechanistic explanation (not just correlation, but the cognitive or physiological 'why')?
+     * What does this mean outside the laboratory for clinical practitioners, musicians, or daily human behavior?
 
-STRICT BROADCAST RULES:
-- Never say each other's personal names. Use desk titles instead of names (e.g., 'Here is the breakdown from the affective science desk').
-- NO markdown asterisks (*), hashtags (#), or parenthetical stage directions.
-- Keep delivery natural, spoken, and broadcast-ready.
+BROADCAST RULES:
+- Never say each other's personal names. Toss by desk titles (e.g., 'From our cognitive neuroscience desk...', 'Turning over to the affective science desk...').
+- NO markdown formatting, asterisks (*), hashtags (#), or bracketed instructions.
+- Natural spoken phrasing only.
 
 PAPERS TO COVER:
 {papers_text}
 
 OUTPUT FORMAT:
-Anchor: [text]
-Correspondent 1: [text]
-Anchor: [text]
-Correspondent 2: [text]
-Anchor: [text]
-Correspondent 3: [text]
-Anchor: [final sign-off with 1-sentence recap of all three papers]"""
+Anchor: [morning teaser and intro to story 1]
+Correspondent 1: [comprehensive deep-dive breakdown ~350 words]
+Anchor: [transition and intro to story 2]
+Correspondent 2: [comprehensive deep-dive breakdown ~350 words]
+Anchor: [transition and intro to story 3]
+Correspondent 3: [comprehensive deep-dive breakdown ~350 words]
+Anchor: [final sign-off integrating takeaways from all three papers]"""
 
     for model_name in CANDIDATE_MODELS:
         try:
@@ -653,7 +661,7 @@ async def main():
     
     # 4. Artwork
     lead_paper = daily_papers[0]
-    generate_episode_art(lead_paper, art_path)
+    generate_episode_art(daily_papers, art_path)
     
     # 5. Build Rich Show Notes
     show_notes = build_show_notes(daily_papers)
