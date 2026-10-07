@@ -250,54 +250,75 @@ def get_font(size, bold=False):
 def generate_episode_art(papers, output_path):
     from PIL import Image, ImageDraw, ImageFont
     import textwrap
+    import urllib.request
     
-    img = Image.new("RGB", (1400, 1400), color="#0F172A") # Deep slate navy
+    img = Image.new("RGB", (1400, 1400), color="#090D16")
     draw = ImageDraw.Draw(img)
 
-    # Accent header bar
-    draw.rectangle([(0, 0), (1400, 32)], fill="#38BDF8")
+    # Accent top bar
+    draw.rectangle([(0, 0), (1400, 28)], fill="#38BDF8")
 
-    # Typography setup
-    try:
-        font_header = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 64)
-        font_sub = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", 40)
-        font_num = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 46)
-        font_title = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", 36)
-        font_meta = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 26)
-    except Exception:
-        font_header = font_sub = font_num = font_title = font_meta = ImageFont.load_default()
+    def get_font(size, bold=False):
+        font_paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
+        ]
+        for p in font_paths:
+            if os.path.exists(p):
+                try:
+                    return ImageFont.truetype(p, size)
+                except Exception:
+                    pass
+        cached_font = "/tmp/Roboto-Bold.ttf" if bold else "/tmp/Roboto-Regular.ttf"
+        if not os.path.exists(cached_font):
+            url = ("https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Bold.ttf"
+                   if bold else "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Regular.ttf")
+            try:
+                urllib.request.urlretrieve(url, cached_font)
+            except Exception:
+                pass
+        if os.path.exists(cached_font):
+            return ImageFont.truetype(cached_font, size)
+        return ImageFont.load_default(size=size) if hasattr(ImageFont, "load_default") else ImageFont.load_default()
 
-    # Brand Title & Date
-    date_str = datetime.datetime.now().strftime("%A, %d %B %Y")
-    draw.text((100, 100), "DAILY RESEARCH BRIEFING", fill="#F8FAFC", font=font_header)
-    draw.text((100, 180), f"PSYCHOLOGY & NEUROSCIENCE DESK  •  {date_str.upper()}", fill="#38BDF8", font=font_sub)
+    font_header = get_font(72, bold=True)
+    font_sub = get_font(34, bold=True)
+    font_num = get_font(54, bold=True)
+    font_title = get_font(46, bold=True)
+    font_meta = get_font(30, bold=False)
 
-    draw.line([(100, 260), (1300, 260)], fill="#334155", width=4)
+    # Header section
+    date_str = datetime.datetime.now().strftime("%A, %d %B %Y").upper()
+    draw.text((80, 65), "DAILY RESEARCH BRIEFING", fill="#F8FAFC", font=font_header)
+    draw.text((80, 155), f"PSYCHOLOGY & NEUROSCIENCE  •  {date_str}", fill="#38BDF8", font=font_sub)
+    draw.line([(80, 215), (1320, 215)], fill="#334155", width=4)
 
-    # Story Headlines Block
-    y_pos = 320
+    # 3 Story Cards
+    y_pos = 250
     for i, p in enumerate(papers[:3]):
-        # Story badge
-        draw.text((100, y_pos), f"0{i+1}", fill="#38BDF8", font=font_num)
-        
-        # Wrapped title
-        title_lines = textwrap.wrap(p.get("title", "Research Investigation"), width=54)
-        curr_y = y_pos
+        # Number block
+        draw.rounded_rectangle([(80, y_pos), (170, y_pos + 72)], radius=12, fill="#1E293B")
+        draw.text((98, y_pos + 6), f"0{i+1}", fill="#38BDF8", font=font_num)
+
+        # Title wrapping with large font
+        title_lines = textwrap.wrap(p.get("title", "Research Investigation"), width=32)
+        curr_y = y_pos - 4
         for line in title_lines[:3]:
-            draw.text((200, curr_y), line, fill="#F1F5F9", font=font_title)
-            curr_y += 48
-            
-        # Metadata / Journal
+            draw.text((200, curr_y), line, fill="#F8FAFC", font=font_title)
+            curr_y += 56
+
+        # Journal & Metadata
         journal = p.get("journal", "Academic Journal")
         year = p.get("year", "Recent")
-        draw.text((200, curr_y + 8), f"{journal.upper()} ({year})", fill="#94A3B8", font=font_meta)
-        
-        y_pos += 290
+        draw.text((200, curr_y + 8), f"{journal.upper()}  •  {year}", fill="#94A3B8", font=font_meta)
+
+        y_pos += 360
         if i < 2:
-            draw.line([(200, y_pos - 40), (1300, y_pos - 40)], fill="#1E293B", width=2)
+            draw.line([(80, y_pos - 35), (1320, y_pos - 35)], fill="#1E293B", width=2)
 
     img.save(output_path, "PNG")
-    print(f"Generated multi-headline cover art: {output_path}")
+    print(f"Generated jumbo-scale cover art: {output_path}")
 
 def write_script_with_fallback(paper):
     spoken_authors = format_spoken_authors(paper["authors"])
