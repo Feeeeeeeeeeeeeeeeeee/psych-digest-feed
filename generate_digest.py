@@ -633,9 +633,8 @@ async def main():
         print("Not enough fresh papers found. Curation threshold not met.")
         return
 
-    # Select the top 3 papers for today's morning drop
     daily_papers = papers[:3]
-    print(f"Selected 3 papers for today's broadcast.")
+    print("Selected 3 papers for today's broadcast.")
     
     # 1. Script Generation with Randomized Personas
     print("Generating radio broadcast script via Gemini...")
@@ -656,19 +655,20 @@ async def main():
     lead_paper = daily_papers[0]
     generate_episode_art(lead_paper, art_path)
     
-    # 5. Build Rich Show Notes with direct links
+    # 5. Build Rich Show Notes
     show_notes = build_show_notes(daily_papers)
     
-    # 6. RSS Entry
-    duration_secs = int(os.path.getsize(ep_path) / 16000) # approximation for RSS length
+    # 6. RSS Entry with all required keys
+    lead_title = lead_paper.get("title", "Daily Research Briefing")[:55]
+    rel_audio_path = f"episodes/{ep_filename}"
+    rel_art_path = f"episodes/{art_filename}"
+
     new_entry = {
-        "title": f"Morning Research Briefing: {lead_paper['title'][:55]}...",
-        "filename": ep_filename,
-        "art_filename": art_filename,
-        "pub_date": email.utils.format_datetime(datetime.datetime.now(datetime.timezone.utc)),
-        "duration": f"{duration_secs // 60}:{duration_secs % 60:02d}",
-        "file_size": os.path.getsize(ep_path),
-        "notes": show_notes,
+        "title": f"Morning Research Briefing: {lead_title}...",
+        "description": show_notes,
+        "guid": f"daily_digest_{date_str}",
+        "audio_path": rel_audio_path,
+        "art_path": rel_art_path,
     }
     
     append_to_podcast_rss([new_entry])
