@@ -563,50 +563,48 @@ Assigned Rhetorical Persona: {persona['description']}""")
 
     papers_text = chr(10).join(p_blocks)
 
-    prompt = f"""You are the lead executive producer for a deep-dive morning science radio news program.
-Produce a thorough, high-substance morning radio broadcast covering these 3 research papers in real depth.
+    prompt = f"""You are the executive showrunner for an in-depth, long-form morning radio science program (similar to BBC Radio 4 In Our Time or NPR Science Friday).
+Your mission is to produce a comprehensive broadcast that runs for 7 to 8 minutes when read aloud.
 
-TARGET DURATION & PACING:
-- Total runtime must target 7 to 8 minutes.
-- Give roughly 2 full minutes to EACH paper (~300 to 380 spoken words per paper from the correspondent).
-- Do NOT rush through brief summaries. Correspondents must deeply deconstruct the methodologies, the underlying mechanics, sample contexts, counter-intuitive findings, and real-world behavioral implications.
+TARGET SCRIPT LENGTH (MANDATORY WORD FLOORS):
+- The entire script must be between 1,150 and 1,350 total words.
+- Each Correspondent segment MUST be at least 350 to 400 words (do not provide brief summaries).
+- Anchor segments should be tight, authoritative, and connecting (~40 to 60 words each).
+
+CORRESPONDENT SEGMENT STRUCTURE (Each of the 3 correspondents MUST follow this 4-part structure):
+  1. The Core Scientific Tension & Experimental Setup (How researchers isolated the question, participant cohorts, or stimulation protocols).
+  2. The Empirical Mechanics & Statistical Reality (Not just that a trend existed, but specific measures, effect sizes, physiological markers, or control comparisons).
+  3. The Cognitive/Mechanistic Explanation (Deconstruct WHY this occurs at a neurological, cognitive, or behavioral level).
+  4. Real-World Translation & Conceptual Scope (What this actually means for clinicians, performers, educators, or everyday human experience).
 
 SPEAKING ROLES:
 
 1. ANCHOR (Molly - Studio Desk):
-   - Confident, authoritative morning radio anchor pace.
-   - Starts with a punchy 2-sentence morning teaser setting the scope of today's scientific focus.
-   - Cleanly introduces each paper with author citation and journal, framing the fundamental question before handing off to the respective desk.
-   - After each correspondent, provides a brief 1-sentence pivot tossing to the next desk.
-   - Delivers a comprehensive final sign-off tying together the overarching implications of all three studies.
+   - Fast, sharp morning radio pace (+16%).
+   - Intro: 2-sentence morning hook framing today's scientific themes.
+   - Tosses: Clean handoffs directly to the domain desks (e.g., "Turning to our Affective Science desk...", "Over to Music Cognition...").
+   - Outro: A thoughtful 3-sentence synthesis tying together the common threads of today's three papers.
 
 2. CORRESPONDENT 1, 2, and 3:
-   - Each correspondent MUST strictly adopt their assigned rhetorical persona:
-     * Story 1 ({domain_pool[0]}): {assigned_personas[0]['description']}
-     * Story 2 ({domain_pool[1]}): {assigned_personas[1]['description']}
-     * Story 3 ({domain_pool[2]}): {assigned_personas[2]['description']}
-   - Give each paper a rich, multi-paragraph walkthrough:
-     * Break down the experimental design or paradigm.
-     * What were the explicit statistical findings or observed shifts?
-     * What is the mechanistic explanation (not just correlation, but the cognitive or physiological 'why')?
-     * What does this mean outside the laboratory for clinical practitioners, musicians, or daily human behavior?
+   - Must strictly maintain their assigned rhetorical persona throughout their ~380-word segment:
+     * Story 1 ({domain_pool[0]}): {assigned_personas[0]["description"]}
+     * Story 2 ({domain_pool[1]}): {assigned_personas[1]["description"]}
+     * Story 3 ({domain_pool[2]}): {assigned_personas[2]["description"]}
 
-BROADCAST RULES:
-- Never say each other's personal names. Toss by desk titles (e.g., 'From our cognitive neuroscience desk...', 'Turning over to the affective science desk...').
-- NO markdown formatting, asterisks (*), hashtags (#), or bracketed instructions.
-- Natural spoken phrasing only.
+FORMATTING RULES:
+- Only dialogue formatted with Speaker prefixes:
+  Anchor: ...
+  Correspondent 1: ...
+  Anchor: ...
+  Correspondent 2: ...
+  Anchor: ...
+  Correspondent 3: ...
+  Anchor: ...
+- NO asterisks, NO markdown bold/italics, NO bracketed directions (e.g., [laughs] or [pause]).
 
-PAPERS TO COVER:
+PAPERS FOR TODAY'S BROADCAST:
 {papers_text}
-
-OUTPUT FORMAT:
-Anchor: [morning teaser and intro to story 1]
-Correspondent 1: [comprehensive deep-dive breakdown ~350 words]
-Anchor: [transition and intro to story 2]
-Correspondent 2: [comprehensive deep-dive breakdown ~350 words]
-Anchor: [transition and intro to story 3]
-Correspondent 3: [comprehensive deep-dive breakdown ~350 words]
-Anchor: [final sign-off integrating takeaways from all three papers]"""
+"""
 
     for model_name in CANDIDATE_MODELS:
         try:
