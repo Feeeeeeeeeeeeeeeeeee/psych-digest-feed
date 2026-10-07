@@ -1,3 +1,19 @@
+def build_show_notes(papers):
+    notes = ["<p><strong>Today\'s Morning Science Briefing:</strong></p><ul>"]
+    for p in papers:
+        url = p.get("url") or f"https://doi.org/{p.get('doi', '')}" if p.get("doi") else f"https://scholar.google.com/scholar?q={p['title'].replace(' ', '+')}"
+        authors = ", ".join(p.get("authors", []))
+        notes.append(f"<li><a href=\"{url}\"><strong>{p['title']}</strong></a> — {authors} (<em>{p.get('journal', '')}</em>, {p.get('year', '')})</li>")
+    notes.append("</ul>")
+    return "".join(notes)
+
+def sanitize_tts_text(text):
+    text = text.replace("*", "").replace("#", "").replace("_", "")
+    text = re.sub(r"\[.*?\]", "", text)
+    text = re.sub(r"\(https?://[^\)]+\)", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
 import os
 import re
 import json
@@ -16,8 +32,12 @@ from google import genai
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_KEY) if GEMINI_KEY else None
 
-VOICE_ALEX = "en-US-GuyNeural"
-VOICE_JORDAN = "en-US-JennyNeural"
+VOICE_ANCHOR = {"name": "Molly", "id": "en-NZ-MollyNeural", "pitch": "+0Hz", "rate": "+16%"}
+CORRESPONDENT_ROSTER = [
+    {"name": "Natasha", "id": "en-AU-NatashaNeural", "pitch": "+0Hz", "rate": "+3%"},
+    {"name": "Sonia", "id": "en-GB-SoniaNeural", "pitch": "+0Hz", "rate": "+3%"},
+    {"name": "Libby", "id": "en-GB-LibbyNeural", "pitch": "+0Hz", "rate": "+3%"},
+]
 
 FEED_BASE_URL = "https://feeeeeeeeeeeeeeeeeee.github.io/psych-digest-feed/"
 FEED_FILE = "feed.xml"
@@ -343,28 +363,40 @@ def write_script_with_fallback(paper):
     raise RuntimeError("Could not generate script after retrying available models.")
 
 async def generate_episode_audio(script_text, output_mp3):
-    lines = script_text.strip().split("\n")
+    lines = script_text.strip().splitlines()
     temp_files = []
     
+    corrs = list(CORRESPONDENT_ROSTER)
+    random.shuffle(corrs)
+    
+    voice_map = {
+        "Anchor": VOICE_ANCHOR,
+        "Correspondent 1": corrs[0],
+        "Correspondent 2": corrs[1],
+        "Correspondent 3": corrs[2],
+    }
+
     for i, line in enumerate(lines):
         line = line.strip()
         if not line or ":" not in line:
             continue
         speaker, text = line.split(":", 1)
-        # Ensure Jordan gets Jenny (feminine) and Alex gets Guy (masculine)
-        voice = VOICE_JORDAN if "Jordan" in speaker else VOICE_ALEX
-        temp_filename = f"temp_part_{i}.mp3"
-        
-        communicate = edge_tts.Communicate(text.strip(), voice)
-        await communicate.save(temp_filename)
-        temp_files.append(temp_filename)
-        
-    with open(output_mp3, "wb") as outfile:
+        speaker = speaker.strip()
+        clean_text = sanitize_tts_text(text)
+
+        meta = voice_map.get(speaker, VOICE_ANCHOR)
+        fname = f"temp_daily_{i}.mp3"
+        comm = edge_tts.Communicate(clean_text, meta["id"], rate=meta["rate"], pitch=meta["pitch"])
+        await comm.save(fname)
+        temp_files.append(fname)
+
+    with open(output_mp3, "wb") as out:
         for f in temp_files:
             if os.path.exists(f):
-                with open(f, "rb") as infile:
-                    outfile.write(infile.read())
+                with open(f, "rb") as inf:
+                    out.write(inf.read())
                 os.remove(f)
+
 
 def build_paths(idx, paper):
     date_slug = get_date_stamp()
@@ -446,54 +478,59 @@ def append_to_podcast_rss(new_entries):
     print(f"Updated {FEED_FILE} (added {len(new_entries)} fresh episodes).")
 
 async def main():
-    os.makedirs("episodes", exist_ok=True)
-    os.makedirs("artwork", exist_ok=True)
+    print(f"=== Starting Morning Research Desk [{get_date_stamp()}] ===")
+    history = load_history()
+    papers = curate_new_papers(history)
     
-    history_set = load_history()
-    date_slug = get_date_stamp()
-    print(f"[{date_slug}] Checking for brand-new papers (skipping {len(history_set)} previously covered)...")
-    
-    new_papers = curate_new_papers(history_set)
-    if not new_papers:
-        print("No new papers found since last cycle. Exiting without changes.")
+    if len(papers) < 3:
+        print("Not enough fresh papers found. Curation threshold not met.")
         return
 
-    print(f"Found {len(new_papers)} new papers. Synthesizing...\n")
-    episode_entries = []
-
-    for idx, paper in enumerate(new_papers, 1):
-        mp3_path, art_path = build_paths(idx, paper)
-        print(f"--- [{idx}/{len(new_papers)}] {paper['title'][:65]} ---")
-        
-        generate_episode_art(paper, art_path)
-        script = write_script_with_fallback(paper)
-        await generate_episode_audio(script, mp3_path)
-        
-        author_cite = format_author_citation(paper["authors"])
-        ep_title = f"{date_slug} - {idx:02d}: {paper['title']} ({author_cite})"
-        
-        paper_link = paper["url"] if paper["url"] else "No direct link available"
-        ep_desc = (
-            f"{paper['title']} - {author_cite} - {paper['year']}\n"
-            f"{paper_link}\n\n"
-            f"{paper['journal']} ({paper['year']}). {paper['abstract']}"
-        )
-        
-        episode_entries.append({
-            "title": ep_title,
-            "description": ep_desc,
-            "audio_path": mp3_path,
-            "art_path": art_path,
-            "guid": f"digest-{paper['id'].split('/')[-1]}"
-        })
-        
-        history_set.add(paper["id"])
-        if idx < len(new_papers):
-            time.sleep(3)
-
-    append_to_podcast_rss(episode_entries)
-    save_history(history_set)
-    print(f"All {len(new_papers)} episodes compiled successfully.")
+    # Select the top 3 papers for today's morning drop
+    daily_papers = papers[:3]
+    print(f"Selected 3 papers for today's broadcast.")
+    
+    # 1. Script Generation with Randomized Personas
+    print("Generating radio broadcast script via Gemini...")
+    script_text = generate_broadcast_script(daily_papers)
+    
+    # 2. File paths & Metadata
+    date_str = get_date_stamp()
+    ep_filename = f"daily_digest_{date_str}.mp3"
+    art_filename = f"daily_digest_{date_str}.png"
+    ep_path = os.path.join(EPISODES_DIR, ep_filename)
+    art_path = os.path.join(EPISODES_DIR, art_filename)
+    
+    # 3. Audio Synthesis
+    print("Synthesizing audio (Anchor @ +16%, Correspondents @ +3%)...")
+    await generate_broadcast_audio(script_text, ep_path)
+    
+    # 4. Artwork
+    lead_paper = daily_papers[0]
+    generate_episode_art(lead_paper, art_path)
+    
+    # 5. Build Rich Show Notes with direct links
+    show_notes = build_show_notes(daily_papers)
+    
+    # 6. RSS Entry
+    duration_secs = int(os.path.getsize(ep_path) / 16000) # approximation for RSS length
+    new_entry = {
+        "title": f"Morning Research Briefing: {lead_paper['title'][:55]}...",
+        "filename": ep_filename,
+        "art_filename": art_filename,
+        "pub_date": email.utils.format_datetime(datetime.datetime.now(datetime.timezone.utc)),
+        "duration": f"{duration_secs // 60}:{duration_secs % 60:02d}",
+        "file_size": os.path.getsize(ep_path),
+        "notes": show_notes,
+    }
+    
+    append_to_podcast_rss([new_entry])
+    
+    # 7. Update History
+    for p in daily_papers:
+        history.add(p["id"])
+    save_history(history)
+    print(f"=== Morning Digest Complete: {ep_filename} ===")
 
 if __name__ == "__main__":
     asyncio.run(main())
