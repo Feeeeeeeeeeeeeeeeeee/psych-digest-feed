@@ -477,6 +477,146 @@ def append_to_podcast_rss(new_entries):
         f.write(rss_content)
     print(f"Updated {FEED_FILE} (added {len(new_entries)} fresh episodes).")
 
+
+# --- NEWSDESK CONFIGURATION & VOICE ROSTER ---
+VOICE_ANCHOR = {"name": "Molly", "id": "en-NZ-MollyNeural", "pitch": "+0Hz", "rate": "+16%"}
+CORRESPONDENT_ROSTER = [
+    {"name": "Natasha", "id": "en-AU-NatashaNeural", "pitch": "+0Hz", "rate": "+3%"},
+    {"name": "Sonia", "id": "en-GB-SoniaNeural", "pitch": "+0Hz", "rate": "+3%"},
+    {"name": "Libby", "id": "en-GB-LibbyNeural", "pitch": "+0Hz", "rate": "+3%"},
+]
+
+STYLE_PERSONAS = [
+    {
+        "id": "pedagogical_clarifier",
+        "description": "Pedagogical & Conceptual Clarifier. Deliberate, structured, intentional framing (e.g., 'We are in the territory of...', 'The distinction here is intentional...', 'You will never have a neat, open-and-shut case where...'). Focuses on scope, underlying premises, and conceptual clarity."
+    },
+    {
+        "id": "translational_narrator",
+        "description": "Translational & Big-Picture Communicator. Warm, engaging, public science approach (e.g., 'What makes this so compelling is how it translates outside the lab...', 'Making sure this research isn\'t just tucked away in a journal...'). Focuses on human meaning, everyday resonance, and broader societal relevance."
+    },
+    {
+        "id": "mechanistic_deconstructer",
+        "description": "Applied Empirical & Mechanistic Deconstructer. Pragmatic analyst who immediately separates correlation from causation (e.g., 'The link here is not necessarily that X causes Y; rather, the mechanism appears to be...', 'Looking past the baseline, what this actually isolates is...'). Translates raw statistical shifts into concrete everyday effects."
+    }
+]
+
+def sanitize_tts_text(text):
+    text = text.replace("*", "").replace("#", "").replace("_", "")
+    text = re.sub(r"\[.*?\]", "", text)
+    text = re.sub(r"\(https?://[^\)]+\)", "", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+def build_show_notes(papers):
+    notes = ["<p><strong>Today's Morning Science Briefing:</strong></p><ul>"]
+    for p in papers:
+        url = p.get("url") or (f"https://doi.org/{p['doi']}" if p.get("doi") else f"https://scholar.google.com/scholar?q={p['title'].replace(' ', '+')}")
+        authors = ", ".join(p.get("authors", []))
+        notes.append(f"<li><a href=\"{url}\"><strong>{p['title']}</strong></a> — {authors} (<em>{p.get('journal', 'Academic Journal')}</em>, {p.get('year', 'Recent')})</li>")
+    notes.append("</ul>")
+    return "".join(notes)
+
+def generate_broadcast_script(papers):
+    import random
+    assigned_personas = random.sample(STYLE_PERSONAS, 3)
+    domain_pool = [
+        "Cognitive & Motor Neuroscience Desk",
+        "Affective Science & Music Psychology Desk",
+        "Clinical & Behavioral Health Desk"
+    ]
+    random.shuffle(domain_pool)
+
+    p_blocks = []
+    for i, p in enumerate(papers):
+        authors = format_spoken_authors(p["authors"])
+        clean_abs = clean_abstract_for_tts(p["abstract"])
+        desk = domain_pool[i]
+        persona = assigned_personas[i]
+        p_blocks.append(f"""STORY {i+1} [{desk}]:
+Title: {p['title']}
+Journal: {p.get('journal', 'Academic Journal')} ({p.get('year', 'Recent')})
+Authors: {authors}
+Clean Abstract: {clean_abs}
+Assigned Rhetorical Persona: {persona['description']}""")
+
+    papers_text = chr(10).join(p_blocks)
+
+    prompt = f"""You are the lead producer for a morning science radio news broadcast.
+Write a continuous, high-momentum morning news bulletin covering these 3 research papers.
+
+SPEAKING ROLES:
+
+1. ANCHOR (Molly - Studio Desk):
+   - Fast, confident, authoritative morning radio anchor pace.
+   - Delivers a 2-sentence morning teaser, introduces each story with publication citation and abstract context, tosses cleanly to the corresponding desk title (e.g., 'From the cognitive neuroscience desk...', 'Turning to our behavioral health desk...'), and closes with a brisk 1-sentence recap tying together all three topics.
+
+2. CORRESPONDENT 1, 2, and 3:
+   - Each correspondent MUST strictly adopt the specific 'Assigned Rhetorical Persona' detailed in their paper block below.
+   - Correspondents jump straight into findings, mechanisms, and real-world takeaways.
+
+STRICT BROADCAST RULES:
+- Never say each other's personal names. Use desk titles instead of names (e.g., 'Here is the breakdown from the affective science desk').
+- NO markdown asterisks (*), hashtags (#), or parenthetical stage directions.
+- Keep delivery natural, spoken, and broadcast-ready.
+
+PAPERS TO COVER:
+{papers_text}
+
+OUTPUT FORMAT:
+Anchor: [text]
+Correspondent 1: [text]
+Anchor: [text]
+Correspondent 2: [text]
+Anchor: [text]
+Correspondent 3: [text]
+Anchor: [final sign-off with 1-sentence recap of all three papers]"""
+
+    for model_name in CANDIDATE_MODELS:
+        try:
+            res = client.models.generate_content(model=model_name, contents=prompt)
+            if res and res.text:
+                return res.text
+        except Exception:
+            continue
+    raise RuntimeError("Failed to generate broadcast script.")
+
+async def generate_broadcast_audio(script_text, output_mp3):
+    lines = script_text.strip().splitlines()
+    temp_files = []
+    
+    corrs = list(CORRESPONDENT_ROSTER)
+    import random
+    random.shuffle(corrs)
+    
+    voice_map = {
+        "Anchor": VOICE_ANCHOR,
+        "Correspondent 1": corrs[0],
+        "Correspondent 2": corrs[1],
+        "Correspondent 3": corrs[2],
+    }
+
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        speaker, text = line.split(":", 1)
+        speaker = speaker.strip()
+        clean_text = sanitize_tts_text(text)
+
+        meta = voice_map.get(speaker, VOICE_ANCHOR)
+        fname = f"temp_daily_{i}.mp3"
+        comm = edge_tts.Communicate(clean_text, meta["id"], rate=meta["rate"], pitch=meta["pitch"])
+        await comm.save(fname)
+        temp_files.append(fname)
+
+    with open(output_mp3, "wb") as out:
+        for f in temp_files:
+            if os.path.exists(f):
+                with open(f, "rb") as inf:
+                    out.write(inf.read())
+                os.remove(f)
+
 async def main():
     print(f"=== Starting Morning Research Desk [{get_date_stamp()}] ===")
     history = load_history()
