@@ -542,7 +542,7 @@ Assigned Rhetorical Persona: {persona['description']}""")
 
     papers_text = chr(10).join(p_blocks)
 
-        prompt = f"""You are the lead executive producer for a deep-dive morning science radio news program.
+    prompt = f"""You are the lead executive producer for a deep-dive morning science radio news program.
 Produce a thorough, high-substance morning radio broadcast covering these 3 research papers in real depth.
 
 TARGET DURATION & PACING:
