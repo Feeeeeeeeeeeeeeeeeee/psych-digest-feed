@@ -75,11 +75,7 @@ def get_week_of_month(dt):
     return int(math.ceil(adjusted_dom / 7.0))
 
 def get_date_stamp():
-    now = datetime.date.today()
-    month_str = now.strftime("%b")
-    week_num = get_week_of_month(now)
-    year_short = now.strftime("%y")
-    return f"{month_str} W{week_num} {year_short}"
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 
 def clean_abstract_for_tts(text):
     """Strips raw statistical clutter, formulas, and bracketed numbers for smooth spoken audio."""
@@ -693,7 +689,7 @@ async def main():
     new_entry = {
         "title": f"Morning Research Briefing: {lead_title}...",
         "description": show_notes,
-        "guid": f"daily_digest_{date_str}",
+        "guid": f"digest-{date_str}",
         "audio_path": rel_audio_path,
         "art_path": rel_art_path,
     }
